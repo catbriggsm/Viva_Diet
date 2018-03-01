@@ -1,0 +1,135 @@
+############################
+######Project Viva Diet Recall
+######By: Catherine Briggs
+######Created Feb 15,2017
+######Last Edited: 
+###########################
+##Load in needed packages
+library(DT)
+library(XLConnect)
+library(XLConnectJars)
+library(plyr)
+
+setwd("F:/Viva_Diet/")
+###Read in Data
+
+calories<-loadWorkbook("M100125_1.xlsx")
+calories<-readWorksheet(calories, sheet=1)
+
+### Calorie Intake by Meal
+#Reorder/average calories 
+Breakfast<-calories[calories$meal=="Breakfast",]
+Breakfast<-sum(Breakfast$pctkcal)
+
+Dinner<-calories[calories$meal=="Dinner",]
+Dinner<-sum(Dinner$pctkcal)
+
+##Decide how to deal with Brunch Varible
+Lunch <- calories[calories$meal=="Lunch",]
+Lunch <- rbind(Lunch, calories[calories$meal=="Brunch",])
+Lunch <- sum(Lunch$pctkcal)
+
+Snacks <- calories[calories$meal=="Snacks/drinks",]
+Snacks <- sum(Snacks$pctkcal)
+
+#Pie Chart
+##This must be changed based on how many recalls they did
+pct <- round(c(Breakfast/3, Lunch/3, Dinner/3, Snacks/3))
+lbls <- paste(pct,"%",sep="")
+#lbls <- c("Breakfast", "Lunch", "Dinner", "Snacks/drinks")
+#lbls <- paste(lbls, pct)
+#lbls <- paste(lbls,"%",sep="")
+
+
+
+#Use the following website to choose colors
+#http://www.stat.columbia.edu/~tzheng/files/Rcolor.pdf
+pie(pct, labels = lbls, main="CALORIE INTAKE BY MEAL", 
+    col=c("purple", "red", "green3","blue"))
+
+
+legend("bottomleft", title="Meals", 
+       c("Breakfast", "Lunch", "Dinner", "Snacks/Drinks"), 
+       col=c("purple","red","green3","blue"), pch=c(15,15,15,15), 
+       horiz=FALSE)
+
+
+###Food Groups
+#Bar Chart
+
+groups <- loadWorkbook("M100125_2.xlsx")
+group1 <- readWorksheet(groups, sheet=1, startRow = 3)
+group2 <- readWorksheet(groups, sheet=2, startRow = 3)
+group3 <- readWorksheet(groups, sheet=3, startRow = 3)
+
+group <- rbind(group1, group2, group3)
+
+Fruit <- group[group$group=="Fruit",]; Fruit<-mean(Fruit$total)
+Veg <- group[group$group=="Vegetable",]; Veg<-mean(Veg$total)
+Grains <- group[group$group=="Grains",]; Grains<-mean(Grains$total)
+Dairy <- group[group$group=="Dairy",]; Dairy<-mean(Dairy$total)
+Protein <- group[group$group=="Protein Foods",]; Protein<-mean(Protein$total)
+
+g <- c("Fruit", "Vegetables", "Grains", "Dairy", "Protein")
+n <- c(Fruit, Veg, Grains, Dairy, Protein)
+r <- c(2, 2.5, 6, 3, 5.5)
+Group <- data.frame(g,n,r)
+
+plot(Group[,1:2], main="FOOD GROUPS: Reported v. Recommennded Daily Targets*", 
+        xlab="Food Groups", ylab="Cups or ounces", col="Blue", type="h", ylim=c(0,10))
+plot(Group[,c(1,3)], main="FOOD GROUPS: Reported v. Recommennded Daily Targets*", 
+     xlab="Food Groups", ylab="Cups or ounces",add=T)
+
+
+
+###Nutrients
+#Color Coded Table
+#From: https://rstudio.github.io/DT/010-style.html
+
+##Create data table with just Nutrients, Daily Target, daily total, and add status 
+nutrients <- loadWorkbook("M100125_3.xlsx")
+nutrient1 <- readWorksheet(nutrients, sheet=1, startRow = 3)
+nutrient2 <- readWorksheet(nutrients, sheet=2, startRow = 3)
+nutrient3 <- readWorksheet(nutrients, sheet=3, startRow = 3)
+
+nutri <- join_all(list(nutrient1, nutrient2, nutrient3), by=c("group", "target"))
+nutri$average <- round(rowMeans(nutri[,c(3,5,7)]),1)
+
+nutri<-nutri[,c("group", "target", "average")]
+nutri$status <- ifelse(nutri$group=="Sodium (mg)",
+                  ifelse(nutri$average > nutri$target, "OVER",
+                       ifelse(nutri$average < nutri$target, "OK", "youdunfuckedup")),
+                  ifelse(nutri$average < nutri$target, "UNDER",
+                         ifelse(nutri$average > nutri$target, "OK", "youdunfuckedup")))
+
+##Create table 
+
+datatable(nutri, rownames = FALSE, class = 'cell-border stripe',
+          colnames = c("Nutrient", "Daily Target*", "Your Daily Total", "Your Status**"),
+          caption = htmltools::tags$caption(
+            style = 'caption-side: bottom; text-align: left;',
+            htmltools::em("*Based on recommendations for females ages 14-18 from the 
+2015-2020 Dietary 
+Guidelines for Americans/n Units: mg=milligrams; 
+IU=International Units; µg=micrograms \n
+** Highlights indicate values that are below the recommended daily 
+intake for your age and sex group 
+(except for sodium which will be highlighted if 
+                    above the recommended limit).")) 
+          
+          
+          %>% formatStyle(
+              'status', target = 'row',
+              backgroundColor = styleEqual(c("UNDER","OVER","OK"), c("red","red", "white"))) 
+          
+        )
+
+
+##Put them All together
+
+tiff("Test_NutritionPlots.tiff", width=900, height=600)
+par(mfrow=c(3,1))
+pie(calories, labels = lbls, main="CALORIE INTAKE BY MEAL")
+
+
+dev.off()
